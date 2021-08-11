@@ -13,7 +13,7 @@ import io.flutter.embedding.engine.FlutterEngine;
 @Keep
 public final class GeneratedPluginRegistrant {
   public static void registerWith(@NonNull FlutterEngine flutterEngine) {
+    flutterEngine.getPlugins().add(new com.tundralabs.fluttertts.FlutterTtsPlugin());
     flutterEngine.getPlugins().add(new com.csdcorp.speech_to_text.SpeechToTextPlugin());
-    flutterEngine.getPlugins().add(new com.ixsans.text_to_speech.TextToSpeechPlugin());
   }
 }

@@ -1,175 +1,229 @@
+import 'dart:collection';
+
 import 'package:avatar_glow/avatar_glow.dart';
+import 'package:clipboard/clipboard.dart';
 import 'package:flutter/material.dart';
-import 'package:highlight_text/highlight_text.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:text_to_speech/text_to_speech.dart';
-import 'package:ibm_watson_assistant/ibm_watson_assistant.dart';
+import 'package:highlight_text/highlight_text.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
-TextToSpeech tts = TextToSpeech();
+void main() => runApp(MyApp());
 
-var xtext = '';
+bool isListening = false;
+enum TtsState { playing, stopped }
 
-void main() {
-  runApp(MyApp());
+class MyApp extends StatefulWidget {
+  @override
+  _MyApp createState() => _MyApp();
 }
 
-class MyApp extends StatelessWidget {
+
+
+
+
+class _MyApp extends State<MyApp> {
+
+
+  LinkedHashMap<String, HighlightedWord> highlightedWords = LinkedHashMap();
+
+  late stt.SpeechToText speech;
+  String promptText = "Press the button to start speaking";
+  String speechText = '';
+  double confidence = 1.0;
+
+  //Voice
+  //Voice Control
+  FlutterTts? flutterTts;
+  String language = 'en-US';
+  double volume = 0.5;
+  double pitch = 1.0;
+  double rate = 0.5;
+
+  String? _newVoiceText;
+
+  TtsState ttsState = TtsState.stopped;
+
+  get isPlaying => ttsState == TtsState.playing;
+
+  get isStopped => ttsState == TtsState.stopped;
+
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Voice',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.red,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: SpeechScreen(),
-    );
+    return  MaterialApp(
+        home: Scaffold(
+          backgroundColor: Colors.white,
+          floatingActionButton: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AvatarGlow(
+              endRadius: 75,
+              animate: isListening,
+              glowColor: Colors.red,
+              child: FloatingActionButton(
+                backgroundColor: Colors.red,
+                child: Icon(
+                  isListening ? Icons.mic : Icons.mic_none,
+                ),
+                onPressed: listenToSpeech,
+              ),
+            ),
+            SizedBox(width: 5),
+            FloatingActionButton(
+              elevation: speechText.isNotEmpty ? 6 : 1,
+              backgroundColor: speechText.isNotEmpty ? Colors.red : Colors.black12,
+              child: Icon(Icons.copy_rounded),
+              onPressed: textHighLight,
+            )
+          ],
+        ),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 60),
+                child: Center(
+                    child: Text(
+                      "Confidence level ${(confidence * 100).toStringAsFixed(1)}%",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                    )),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 20),
+                  child: SingleChildScrollView(
+                    reverse: false,
+                    padding: EdgeInsets.all(30),
+                    child: Text(promptText,
+                        style: TextStyle(
+                            fontSize: 32,
+                            color: Colors.black,
+                            fontWeight: FontWeight.w400)),
+                    // child: TextHighlight(
+                    //   text: _promptText,
+                    //   words: highlightedWords,
+                    //   textStyle: TextStyle(
+                    //       fontSize: 32,
+                    //       color: Colors.black,
+                    //       fontWeight: FontWeight.w400),
+                    // ),
+                  ),
+                ),
+              )
+            ],
+          ),
+        )
+      );
   }
-}
 
-class SpeechScreen extends StatefulWidget {
-  @override
-  _SpeechScreenState createState() => _SpeechScreenState();
-}
+  initTts() {
+    flutterTts = FlutterTts();
+    flutterTts!.setStartHandler(() {
+      setState(() {
+        print("playing");
+        ttsState = TtsState.playing;
+      });
+    });
 
-class IBM {
-  void wat(String tx) async {
-    final auth = IbmWatsonAssistantAuth(
-      assistantId: 'edaa49c4-0865-418d-b788-e7c01292c93c',
-      url:'https://api.eu-gb.assistant.watson.cloud.ibm.com/instances/417474d1-05ec-46b1-9a0a-36b8f3b4c05b',
-      apikey: 'EWyckFCVi0He4UbcXt13bgH2p4iUKNIs6D7mEbHz31yr',
-    );
+    flutterTts!.setCompletionHandler(() {
+      setState(() {
+        print("Complete");
+        ttsState = TtsState.stopped;
+      });
+    });
 
-    final bot = IbmWatsonAssistant(auth);
+    flutterTts!.setErrorHandler((msg) {
+      setState(() {
+        print("error: $msg");
+        ttsState = TtsState.stopped;
+      });
+    });
+  }
 
-    final sessionId = await bot.createSession();
 
-    final botRes = await bot.sendInput(tx, sessionId: sessionId);
-    xtext = botRes.responseText;
 
-    bot.deleteSession(sessionId);
+  Future _speak() async {
+    await flutterTts!.setVolume(volume);
+    await flutterTts!.setSpeechRate(rate);
+    await flutterTts!.setPitch(pitch);
 
-    try {
-      final logs = await bot.logs();
-      print(logs);
-    } catch (e) {
-      // print('Logging endpoint only available for paid plans.\n$e');
+    if (_newVoiceText != null) {
+      if (_newVoiceText!.isNotEmpty) {
+        var result = await flutterTts!.speak(_newVoiceText!);
+        if (result == 1) setState(() => ttsState = TtsState.playing);
+      }
     }
   }
-}
 
-class _SpeechScreenState extends State<SpeechScreen> {
-  final Map<String, HighlightedWord> _highlights = {
-    'flutter': HighlightedWord(
-      onTap: () => print('flutter'),
-      textStyle: const TextStyle(
-        color: Colors.blue,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    'voice': HighlightedWord(
-      onTap: () => print('voice'),
-      textStyle: const TextStyle(
-        color: Colors.green,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    'subscribe': HighlightedWord(
-      onTap: () => print('subscribe'),
-      textStyle: const TextStyle(
-        color: Colors.red,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    'like': HighlightedWord(
-      onTap: () => print('like'),
-      textStyle: const TextStyle(
-        color: Colors.blueAccent,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    'comment': HighlightedWord(
-      onTap: () => print('comment'),
-      textStyle: const TextStyle(
-        color: Colors.green,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  };
+  Future _stop() async {
+    var result = await flutterTts!.stop();
+    if (result == 1) setState(() => ttsState = TtsState.stopped);
+  }
 
-  stt.SpeechToText _speech;
-  bool _isListening = false;
-  String _text = 'Press the button and start speaking';
-  double _confidence = 1.0;
+  @override
+  void dispose() {
+    super.dispose();
+    flutterTts!.stop();
+  }
 
+
+  void _onChange(String text) {
+    setState(() {
+      _newVoiceText = text;
+    });
+  }
   @override
   void initState() {
     super.initState();
-    _speech = stt.SpeechToText();
+    setState(() {
+      speech = stt.SpeechToText();
+      initTts();
+    });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Confidence: ${(_confidence * 100.0).toStringAsFixed(1)}%'),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: AvatarGlow(
-        animate: _isListening,
-        glowColor: Theme.of(context).primaryColor,
-        endRadius: 75.0,
-        duration: const Duration(milliseconds: 2000),
-        repeatPauseDuration: const Duration(milliseconds: 100),
-        repeat: true,
-        child: FloatingActionButton(
-          onPressed: _listen,
-          child: Icon(_isListening ? Icons.mic : Icons.mic_none),
-        ),
-      ),
-      body: SingleChildScrollView(
-        reverse: true,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(30.0, 30.0, 30.0, 150.0),
-          child: TextHighlight(
-            text: _text,
-            words: _highlights,
-            textStyle: const TextStyle(
-              fontSize: 32.0,
-              color: Colors.black,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ),
-      ),
-    );
+
+  void textHighLight(){
+    if(speechText.isNotEmpty){
+      FlutterClipboard.copy(speechText);
+    }
   }
 
-  void _listen() async {
-    if (!_isListening) {
-      bool available = await _speech.initialize(
-        onStatus: (val) => print('onStatus: $val'),
-        onError: (val) => print('onError: $val'),
+  void listenToSpeech() async {
+
+    if (!isListening) {
+      bool available = await speech.initialize(
+        onStatus: (val) {
+          if(val.contains("notListening")){
+            setState(() => isListening = false);
+          }
+          print('onStatus: $val');
+        },
+        onError: (val){
+          setState(() => isListening = false);
+          print('onError: $val');
+        },
+
       );
+
       if (available) {
-        setState(() => _isListening = true);
-        _speech.listen(
+        setState(() => isListening = true);
+        speech.listen(
           onResult: (val) => setState(() {
-            _text = val.recognizedWords;
-            IBM ibm = new IBM();
-            ibm.wat(_text);
-            _text = xtext;
-            tts.speak(xtext);
+            promptText = val.recognizedWords;
+            speechText = val.recognizedWords;
+            _newVoiceText = speechText;
+            _speak();
+            _stop();
             if (val.hasConfidenceRating && val.confidence > 0) {
-              _confidence = val.confidence;
+              confidence = val.confidence;
             }
           }),
         );
       }
     } else {
-      setState(() => _isListening = false);
-      _speech.stop();
+      print("Text: "+speechText);
+      setState(() => isListening = false);
+      speech.stop();
+      _speak();
     }
   }
 }

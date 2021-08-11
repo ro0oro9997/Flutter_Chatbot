@@ -1,7 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.chatbot">
+    package="com.example.voicce_to_speech">
+    
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+
    <application
-        android:label="chatbot"
+        android:label="FluSpeech"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
