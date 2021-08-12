@@ -6,7 +6,7 @@ A new Flutter voice to speech for the robot to talk to and talk back
 
 This project is a starting point for a Flutter application.
 
---
+-------------------
 
 ## Setup
 
@@ -14,7 +14,7 @@ This project is a starting point for a Flutter application.
 - Must Either use : Android Studio (Recommended) or Visual Studio Code
 - Have a phone or install an emulator to run the application
 
--- 
+-------------------
 
 ## Application Process
 
